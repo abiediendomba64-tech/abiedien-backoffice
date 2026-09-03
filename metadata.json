@@ -1,0 +1,6 @@
+{
+  "name": "Telegram Bot Enterprise",
+  "description": "Bot Telegram modular untuk verifikasi domain, tiket, forum, pembayaran, dan administrasi member.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

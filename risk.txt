@@ -1,0 +1,77 @@
+🔴 RISIKO KRITIS (HARUS DITANGANI SEBELUM GO-LIVE)
+1. "Penyusup Mengaku Admin & Broadcast Spam/Phishing" (Social Engineering)
+Skenario: Akun Telegram salah satu dari 3 Super Admin diretas (atau HP-nya hilang). Penyerang masuk ke bot dan menjalankan /broadcast dengan pesan: "Kirimkan 1 juta ke rekening X untuk perpanjangan domain".
+
+Dampak: Semua member (ratusan orang) kena tipu. Reputasi bisnis Anda hancur total.
+
+Mitigasi Kode:
+
+Jangan izinkan perintah berbahaya (Broadcast, Verify Pay, Delete) tanpa 2-Factor Approval (2FA internal).
+
+Tambahkan broadcast_preview dan broadcast_confirm. Admin harus mengetik kode OTP yang dikirim ke WhatsApp atau Email terdaftar admin sebelum broadcast terkirim.
+
+2. "SQLite Database Lock (Corruption) Akibat Concurrent Write" (Tech Debt)
+Skenario: Bot menjalankan Scheduler Verifikasi Bulanan (update 100 user) BERSAMAAN dengan 50 member yang sedang upload bukti pembayaran dan 3 admin yang sedang verifikasi tiket. SQLite tidak mendukung write concurreny tinggi.
+
+Dampak: File data_member.db corrupt. Semua data member, tiket, pembayaran LENYAP.
+
+Mitigasi Kode:
+
+Ganti koneksi SQLite dengan pooling dan aktifkan PRAGMA journal_mode=WAL.
+
+Bungkus semua operasi INSERT/UPDATE dengan Retry Logic (Coba ulang jika lock).
+
+3. "Akuisisi Domain Tanpa Verifikasi Kepemilikan" (Fraud)
+Skenario: Member A (jahat) mengajukan "New Claim" untuk domain tokosaya.com. Super Admin melihat domain tersebut Available (tersedia), lalu langsung membelikannya untuk Member A. Padahal, domain tokosaya.com adalah milik Member B yang sedang lengah (expired), dan Member A hanya memakai data diri palsu.
+
+Dampak: Admin membeli domain yang "dicuri" (haknya milik orang lain), terjadi sengketa hukum.
+
+Mitigasi Logika:
+
+WAJIB tambahkan aturan: "New Claim / Akuisisi HANYA berlaku untuk domain yang sudah terverifikasi oleh si pengaju di masa lalu, ATAU sudah melewati masa tenggang (grace period) 30 hari setelah expired".
+
+Jangan langsung beli domain hanya karena status "Available" secara teknis.
+
+🟠 RISIKO TINGGI (WAJIB ADA SOP MANUAL)
+4. "Bukti Pembayaran Dipalsukan (Screenshot Editan)"
+Skenario: Member mengirim screenshot bukti transfer yang sudah diedit menggunakan Photoshop. Admin melihatnya, langsung menjalankan /verify_pay, dan memberikan akses/credit ke member.
+
+Dampak: Kerugian finansial langsung (uang tidak masuk, tapi layanan diberikan).
+
+Mitigasi:
+
+Bot harus mencatat amount (nominal) dan bank_pengirim. Saat verifikasi, Admin wajib mengecek saldo rekening perusahaan secara manual, BUKAN percaya pada gambar.
+
+Tambahkan di kode: Note: Pastikan cek saldo sebelum verifikasi!.
+
+5. "Exposure Data Pribadi Member (Nomor WA & Domain) via Command"
+Skenario: Admin menjalankan /list_members di ruang publik (atau screenshot chat) dan membocorkan daftar domain + nomor WA semua member.
+
+Dampak: Pelanggaran GDPR / UU PDP (Data Pribadi). Member bisa menuntut.
+
+Mitigasi:
+
+Jangan tampilkan telegram_id dan whatsapp secara langsung di chat. Gunakan Anonimisasi (contoh: Budi (ID: ****6789)).
+
+Hasil /list_members hanya bisa dikirimkan sebagai file .txt terenkripsi atau melalui Private Channel khusus Super Admin, bukan di chat 1-on-1 biasa.
+
+6. "Google Indexing API Quota Habis (Silent Failure)"
+Skenario: Admin mengirim 100 domain ke /indexing dalam 1 hari. Google Indexing API memiliki kuota 200 URL/hari. Kuota habis, sisa 80 domain gagal di-index, tetapi bot tetap membalas ✅ Berhasil.
+
+Dampak: Member tidak tahu domain mereka gagal terdaftar di Google. Trafik organik terhambat.
+
+Mitigasi:
+
+Bot harus menangkap error quota exceeded dan menyimpan domain yang gagal ke tabel indexing_queue, lalu mencoba ulang keesokan harinya secara otomatis.
+
+🟡 RISIKO SEDANG (Perlu Diwaspadai)
+Risiko	Deskripsi	Solusi
+Scheduler Mati (Cron Tidak Jalan)	Scheduler pengecekan bulanan hanya berjalan di background thread. Jika terjadi error (misal koneksi DNS timeout), thread mati tanpa pemberitahuan, dan tidak ada re-verifikasi otomatis.	Bungkus fungsi check_monthly_activity dengan try/except dan kirim log error ke Admin. Gunakan APScheduler yang lebih mature daripada schedule.
+Nawala False Positive	API Nawala (pemblokiran) kadang salah mendeteksi domain karena DNS caching.	Jangan otomatis blokir domain member. Gunakan hasil Nawala hanya sebagai "Peringatan" yang harus diverifikasi ulang secara manual oleh Admin.
+Input Sanitasi (XSS/Injection)	Judul Topik Forum atau Deskripsi Tiket berisi <script> atau karakter khusus yang bisa merusak tampilan jika di-render nanti.	Wajib gunakan html.escape() pada semua output teks sebelum dikirim ke Telegram.
+3 Super Admin (SPOF)	Hanya ada 3 orang. Jika ketiganya sedang libur/sakit, tidak ada yang bisa verifikasi pembayaran.	Siapkan "Admin Darurat" yang hanya bisa verifikasi payment (tanpa akses hapus data) di SUPER_ADMIN_IDS.
+🟢 RISIKO RENDAH (Toleransi)
+Perintah Typo / Format Salah: Admin mengetik /verify_pay tanpa ID. Solusi: Kirim pesan error instruktif, sudah saya handle.
+
+Member Upload File Bukan Gambar: Member kirim PDF atau dokumen lain sebagai bukti. Solusi: Terima semua document dan kirim ke admin, biarkan admin yang buka.
+
