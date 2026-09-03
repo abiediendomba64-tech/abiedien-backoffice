@@ -1,21 +1,7 @@
-# Secrets and local configuration
+node_modules/
+dist/
 .env
-
-# Runtime data
-*.db
-*.db-shm
-*.db-wal
-backups/
-logs/
-
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.venv/
-venv/
-
-# Local tooling
-.pytest_cache/
-.mypy_cache/
+.env.*
+!.env.example
+*.log
 .DS_Store
